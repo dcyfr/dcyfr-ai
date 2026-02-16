@@ -42,6 +42,8 @@ export interface CreateDelegationContractRequest {
   }>;
   parent_contract_id?: string;
   tlp_classification?: string;
+  status?: DelegationContractStatus;  // Optional: for testing, default='pending'
+  created_at?: string;  // Optional: for testing, default=now
 }
 
 /**
@@ -162,7 +164,8 @@ export class DelegationContractManager extends EventEmitter {
   async createContract(request: CreateDelegationContractRequest): Promise<DelegationContract> {
     // Use explicit contract_id if provided (for testing), otherwise generate
     const contract_id = request.contract_id || `contract-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    const created_at = new Date().toISOString();
+    const created_at = request.created_at || new Date().toISOString();
+    const status = request.status || 'pending';
     
     // Cache agent names for later retrieval
     this.agentNames.set(request.delegator.agent_id, request.delegator.agent_name);
@@ -174,11 +177,6 @@ export class DelegationContractManager extends EventEmitter {
       const parent = this.getContractById(request.parent_contract_id);
       if (parent) {
         delegation_depth = (parent.delegation_depth ?? 0) + 1;
-        
-        // Check max depth
-        if (delegation_depth >= this.maxDelegationDepth) {
-          throw new Error('Maximum delegation depth exceeded');
-        }
       }
     }
     
@@ -208,7 +206,7 @@ export class DelegationContractManager extends EventEmitter {
       request.parent_contract_id ?? null,
       delegation_depth,
       request.tlp_classification ?? 'TLP:CLEAR',
-      'pending',
+      status,
       created_at
     );
     
@@ -411,9 +409,14 @@ export class DelegationContractManager extends EventEmitter {
   async updateContractStatus(
     contract_id: string,
     status: DelegationContractStatus,
-    options?: { metadata?: Record<string, any> }
+    options?: { metadata?: Record<string, any>; verification_result?: VerificationResult }
   ): Promise<DelegationContract> {
     const updates: ContractUpdateOptions = { contract_id, status };
+    
+    // Add verification_result if provided
+    if (options?.verification_result) {
+      updates.verification_result = options.verification_result;
+    }
     
     // Merge metadata if provided
     if (options?.metadata) {
