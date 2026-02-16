@@ -16,7 +16,7 @@ import { randomUUID } from 'crypto';
 /**
  * Task outcome data for reputation updates
  */
-export interface TaskOutcome {
+export interface ReputationTaskOutcome {
   /** Contract identifier */
   contract_id: string;
   
@@ -206,6 +206,10 @@ export class ReputationEngine {
       debug: config.debug ?? false,
       ema_alpha: config.ema_alpha ?? 0.3,
       min_tasks_for_confidence: config.min_tasks_for_confidence ?? 10,
+      reliabilityWeight,
+      speedWeight,
+      qualityWeight,
+      securityWeight,
     };
     
     // Initialize database
@@ -268,7 +272,7 @@ export class ReputationEngine {
   /**
    * Update or create agent reputation based on task outcome
    */
-  async updateReputation(outcome: TaskOutcome): Promise<AgentReputation> {
+  async updateReputation(outcome: ReputationTaskOutcome): Promise<AgentReputation> {
     const existing = await this.getReputation(outcome.agent_id);
     const timestamp = new Date().toISOString();
     
@@ -282,7 +286,7 @@ export class ReputationEngine {
   /**
    * Create new reputation record for agent
    */
-  private createNewReputation(outcome: TaskOutcome, timestamp: string): AgentReputation {
+  private async createNewReputation(outcome: ReputationTaskOutcome, timestamp: string): Promise<AgentReputation> {
     const reliability_score = outcome.success ? 1.0 : 0.0;
     const quality_score = outcome.quality_score ?? 0.5;
     const security_score = this.calculateSecurityScore(outcome.security_violations);
@@ -328,17 +332,21 @@ export class ReputationEngine {
       event_data: JSON.stringify(outcome),
     });
     
-    return this.getReputation(outcome.agent_id) as Promise<AgentReputation>;
+    const reputation = await this.getReputation(outcome.agent_id);
+    if (!reputation) {
+      throw new Error(`Failed to retrieve reputation for agent ${outcome.agent_id} after creation`);
+    }
+    return reputation;
   }
   
   /**
    * Update existing reputation with new task outcome
    */
-  private updateExistingReputation(
+  private async updateExistingReputation(
     existing: AgentReputation,
-    outcome: TaskOutcome,
+    outcome: ReputationTaskOutcome,
     timestamp: string
-  ): AgentReputation {
+  ): Promise<AgentReputation> {
     const alpha = this.config.ema_alpha;
     
     // Update task counts
@@ -424,7 +432,11 @@ export class ReputationEngine {
       event_data: JSON.stringify(outcome),
     });
     
-    return this.getReputation(outcome.agent_id) as Promise<AgentReputation>;
+    const reputation = await this.getReputation(outcome.agent_id);
+    if (!reputation) {
+      throw new Error(`Failed to retrieve reputation for agent ${outcome.agent_id} after update`);
+    }
+    return reputation;
   }
   
   /**
