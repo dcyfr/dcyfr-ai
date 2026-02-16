@@ -47,6 +47,8 @@ describe('DelegationChainTracker', () => {
         success_criteria TEXT NOT NULL,
         timeout_ms INTEGER NOT NULL,
         permission_tokens TEXT,
+        priority INTEGER DEFAULT 3,
+        metadata TEXT,
         status TEXT NOT NULL DEFAULT 'pending',
         created_at TEXT NOT NULL,
         activated_at TEXT,
