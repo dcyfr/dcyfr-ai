@@ -165,6 +165,18 @@ export interface ReputationEngineConfig {
   
   /** Minimum tasks for high confidence */
   min_tasks_for_confidence?: number;
+  
+  /** Weight for reliability dimension */
+  reliabilityWeight?: number;
+  
+  /** Weight for speed dimension */
+  speedWeight?: number;
+  
+  /** Weight for quality dimension */
+  qualityWeight?: number;
+  
+  /** Weight for security dimension */
+  securityWeight?: number;
 }
 
 /**
@@ -178,6 +190,17 @@ export class ReputationEngine {
   private config: Required<ReputationEngineConfig>;
   
   constructor(config: ReputationEngineConfig = {}) {
+    // Validate dimension weights if provided
+    const reliabilityWeight = config.reliabilityWeight ?? 0.4;
+    const speedWeight = config.speedWeight ?? 0.2;
+    const qualityWeight = config.qualityWeight ?? 0.3;
+    const securityWeight = config.securityWeight ?? 0.1;
+    
+    const totalWeight = reliabilityWeight + speedWeight + qualityWeight + securityWeight;
+    if (Math.abs(totalWeight - 1.0) > 0.001) {
+      throw new Error(`Dimension weights must sum to 1.0, got ${totalWeight}`);
+    }
+    
     this.config = {
       databasePath: config.databasePath || ':memory:',
       debug: config.debug ?? false,
@@ -602,19 +625,28 @@ export class ReputationEngine {
   /**
    * Calculate confidence score based on task count and success rate
    * 
-   * Uses sigmoid function to approach 1.0 as tasks increase,
-   * but penalizes low success rates
+   * For low task counts with high success rate: start with base confidence 0.8
+   * As tasks increase: approach 1.0 using sigmoid
+   * Low success rates: penalize confidence
    */
   private calculateConfidenceScore(total_tasks: number, success_rate: number = 1.0): number {
     const k = this.config.min_tasks_for_confidence;
     
-    // Sigmoid function: 1 / (1 + e^(-x))
-    // Shifted so that min_tasks gives ~0.88 confidence
-    const x = (total_tasks - k / 2) / (k / 4);
-    const baseSigmoid = 1 / (1 + Math.exp(-x));
+    // Base confidence for perfect success starts at 0.8, increases with tasks
+    let baseConfidence: number;
     
-    // Apply success rate penalty (success_rate^2 to penalize failures more heavily)
-    return baseSigmoid * (success_rate * success_rate);
+    if (total_tasks < 5) {
+      // For first few tasks, give high confidence for good performance
+      baseConfidence = 0.8 + (total_tasks / 5) * 0.1; // 0.8 to 0.9
+    } else {
+      // Sigmoid function: 1 / (1 + e^(-x))
+      // Shifted so that min_tasks gives ~0.95 confidence
+      const x = (total_tasks - k / 2) / (k / 4);
+      baseConfidence = 0.85 + 0.15 / (1 + Math.exp(-x)); // 0.85 to 1.0
+    }
+    
+    // Apply success rate penalty (quadratic to penalize failures more heavily)
+    return baseConfidence * (success_rate * success_rate);
   }
   
   /**
