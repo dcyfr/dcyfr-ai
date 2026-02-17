@@ -546,8 +546,8 @@ export class CapabilityRegistry extends EventEmitter implements ICapabilityRegis
   rankAgents(
     requiredCapabilities: string[],
     options: { confidenceWeight?: number; considerWorkload?: boolean } = {}
-  ): Array<{ agent_id: string; agent_name: string; match_score: number }> {
-    const results: Array<{ agent_id: string; agent_name: string; match_score: number }> = [];
+  ): Array<{ agent_id: string; agent_name: string; match_score: number; score: number }> {
+    const results: Array<{ agent_id: string; agent_name: string; match_score: number; score: number }> = [];
 
     for (const manifest of this.manifests.values()) {
       let score = this.calculateMatchScore(manifest.agent_id, requiredCapabilities);
@@ -562,6 +562,7 @@ export class CapabilityRegistry extends EventEmitter implements ICapabilityRegis
           agent_id: manifest.agent_id,
           agent_name: manifest.agent_name,
           match_score: score,
+          score,
         });
       }
     }
