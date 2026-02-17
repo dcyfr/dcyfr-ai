@@ -180,6 +180,11 @@ export class DelegationContractManager extends EventEmitter {
       }
     }
     
+    // Validate max delegation depth
+    if (delegation_depth >= this.maxDelegationDepth) {
+      throw new Error(`Maximum delegation depth exceeded (max: ${this.maxDelegationDepth}, attempted: ${delegation_depth})`);
+    }
+    
     // Insert contract
     const stmt = this.db.prepare(`
       INSERT INTO delegation_contracts (
