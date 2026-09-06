@@ -1,0 +1,59 @@
+# docs-wiki-eval — the caller, tracked here and installed in the documented repo.
+#
+# This file belongs in dcyfr-labs/dcyfr-ai at .github/workflows/docs-wiki-eval.yml.
+# It is kept in rei-workspace because the thing it pins is generated here: the
+# gate runner in usr/docgen/gate-runner/, published to dcyfr-labs/.github. A
+# caller living only in the documented repository would drift from the bundle
+# it pins with nothing able to notice, which is the failure this whole change
+# is about.
+#
+# Both pins below are one commit SHA of dcyfr-labs/.github, written twice on
+# purpose: the `uses:` decides which code runs, and the `gate-ref` input tells
+# that code which commit to check out for its own integrity check. The job
+# compares them, so a half-done bump fails loudly rather than gating against one
+# version while claiming another. Bump the two together or not at all.
+#
+# Neither slot takes a tag or a branch name. A branch resolves to whatever
+# landed last, and a branch-head SHA goes dangling once the branch is deleted
+# after a squash-merge, which fails the run at compile time rather than at the
+# gate. So a caller records the commit it was reviewed against and nothing else.
+#
+# `npm run validate:docgen-bundle` refuses a file where the two disagree, where
+# either is neither a full SHA nor the GATE_RUNNER_SHA placeholder this carried
+# before the runner was published, or where gate-version drifts from the
+# committed bundle.
+
+name: docs-wiki-eval
+
+on:
+  pull_request:
+    paths:
+      - 'docs/wiki/**'
+      - 'llms.txt'
+      - 'llms-full.txt'
+      - 'AGENTS.md'
+      - '.devin/wiki.json'
+  workflow_dispatch:
+    inputs:
+      base-sha:
+        description: Base commit for the diff.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-wiki-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    # A pull request that touches a generated path but was not opened by Scribe
+    # is still gated: the point is that the paths are generator-owned, not that
+    # the author claimed to be the generator.
+    uses: dcyfr-labs/.github/.github/workflows/docs-wiki-eval-reusable.yml@9150f27e6c94280668acff4b543c1be791adc811
+    with:
+      gate-ref: 9150f27e6c94280668acff4b543c1be791adc811
+      gate-version: '0.1.0'
+      base-sha: ${{ github.event.pull_request.base.sha || inputs.base-sha }}
