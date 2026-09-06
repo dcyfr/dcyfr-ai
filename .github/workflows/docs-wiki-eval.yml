@@ -1,0 +1,54 @@
+# docs-wiki-eval — the caller, tracked here and installed in the documented repo.
+#
+# This file belongs in dcyfr-labs/dcyfr-ai at .github/workflows/docs-wiki-eval.yml.
+# It is kept in rei-workspace because the thing it pins is generated here: the
+# gate runner in usr/docgen/gate-runner/, published to dcyfr-labs/.github. A
+# caller living only in the documented repository would drift from the bundle
+# it pins with nothing able to notice, which is the failure this whole change
+# is about.
+#
+# BEFORE INSTALLING, replace both occurrences of GATE_RUNNER_SHA with the full
+# 40-character commit SHA of dcyfr-labs/.github that carries the runner. Two
+# occurrences, deliberately: the `uses:` decides which code runs, and the
+# `gate-ref` input tells that code which commit to check out for its own
+# integrity check. The job compares them, so a half-done bump fails loudly
+# rather than gating against one version while claiming another.
+#
+# `npm run validate:docgen-bundle` refuses a file where the two disagree, where
+# either is neither a full SHA nor the placeholder, or where gate-version drifts
+# from the committed bundle.
+
+name: docs-wiki-eval
+
+on:
+  pull_request:
+    paths:
+      - 'docs/wiki/**'
+      - 'llms.txt'
+      - 'llms-full.txt'
+      - 'AGENTS.md'
+      - '.devin/wiki.json'
+  workflow_dispatch:
+    inputs:
+      base-sha:
+        description: Base commit for the diff.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-wiki-eval-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    # A pull request that touches a generated path but was not opened by Scribe
+    # is still gated: the point is that the paths are generator-owned, not that
+    # the author claimed to be the generator.
+    uses: dcyfr-labs/.github/.github/workflows/docs-wiki-eval-reusable.yml@GATE_RUNNER_SHA
+    with:
+      gate-ref: GATE_RUNNER_SHA
+      gate-version: '0.1.0'
+      base-sha: ${{ github.event.pull_request.base.sha || inputs.base-sha }}
